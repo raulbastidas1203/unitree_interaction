@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+nh_unitree_camera_venv/
+nh_unitree_sdk2_venv/
+
+documentation/*.tmp
