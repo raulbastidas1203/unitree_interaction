@@ -91,7 +91,6 @@ def detect_iface(explicit: Optional[str]) -> Optional[str]:
         return None
 
     preferred = []
-    fallback = []
     for line in result.stdout.splitlines():
         parts = line.split()
         if len(parts) < 4:
@@ -103,12 +102,8 @@ def detect_iface(explicit: Optional[str]) -> Optional[str]:
         ip = cidr.split("/", 1)[0]
         if ip.startswith("192.168.123."):
             preferred.append(iface)
-        else:
-            fallback.append(iface)
     if preferred:
         return preferred[0]
-    if fallback:
-        return fallback[0]
     return None
 
 

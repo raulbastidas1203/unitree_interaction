@@ -34,7 +34,7 @@ Uso:
 Hace:
   1. Detecta repos locales de Unitree.
   2. Infiera ROBOT_IP desde `ip neigh` si no se lo pasas.
-  3. Prepara un venv cliente con Python 3.10 + OpenCV/ZMQ/YAML.
+  3. Prepara un venv cliente con Python 3.10 + OpenCV/ZMQ/YAML/pexpect.
   4. Solo lanza `teleimager.image_client` si ve puertos de stream abiertos.
   5. Si pasas `--mjpeg-fallback`, sube un servidor MJPEG minimo al robot por SSH.
 EOF
@@ -90,7 +90,7 @@ ensure_client_env() {
 
   if "$VENV_DIR/bin/python" - <<'PY' >/dev/null 2>&1
 import importlib.util as u
-mods = ("cv2", "zmq", "yaml", "numpy", "logging_mp")
+mods = ("cv2", "zmq", "yaml", "numpy", "logging_mp", "pexpect")
 missing = [m for m in mods if u.find_spec(m) is None]
 raise SystemExit(1 if missing else 0)
 PY
@@ -99,9 +99,9 @@ PY
     return 0
   fi
 
-  say "Instalando dependencias cliente minimas: OpenCV + ZMQ + YAML + logging_mp"
+  say "Instalando dependencias cliente minimas: OpenCV + ZMQ + YAML + logging_mp + pexpect"
   "$VENV_DIR/bin/python" -m pip install --upgrade pip
-  "$VENV_DIR/bin/python" -m pip install 'numpy<2' pyyaml pyzmq opencv-python logging_mp
+  "$VENV_DIR/bin/python" -m pip install 'numpy<2' pyyaml pyzmq opencv-python logging_mp pexpect
 }
 
 print_python_detection() {
@@ -147,15 +147,20 @@ say "  unitree_sdk2: ${UNITREE_SDK2_REPO:-NO_ENCONTRADO}"
 say "  unitree_ros2: ${UNITREE_ROS2_REPO:-NO_ENCONTRADO}"
 print_python_detection
 
-[[ -n "${TELEIMAGER_REPO:-}" ]] || die "No encontre `teleimager` ni dentro de `xr_teleoperate`."
-
-TELEIMAGER_SRC="$TELEIMAGER_REPO/src"
-[[ -d "$TELEIMAGER_SRC/teleimager" ]] || die "La ruta de fuente de teleimager no existe: $TELEIMAGER_SRC"
-
 CLIENT_PYTHON="$(find_client_python || true)"
 [[ -n "$CLIENT_PYTHON" ]] || die "Necesito Python 3.8/3.9/3.10 para el cliente teleimager."
 say "Python cliente seleccionado: $CLIENT_PYTHON"
 ensure_client_env "$CLIENT_PYTHON"
+
+TELEIMAGER_SRC=""
+if [[ -n "${TELEIMAGER_REPO:-}" ]]; then
+  TELEIMAGER_SRC="$TELEIMAGER_REPO/src"
+  [[ -d "$TELEIMAGER_SRC/teleimager" ]] || die "La ruta de fuente de teleimager no existe: $TELEIMAGER_SRC"
+elif (( MJPEG_FALLBACK )); then
+  warn "No encontre teleimager local. Continuare solo con el fallback MJPEG."
+else
+  die "No encontre `teleimager` ni dentro de `xr_teleoperate`."
+fi
 
 if [[ $# -gt 0 ]]; then
   ROBOT_IP="$1"
@@ -197,9 +202,8 @@ if (( ! ANY_STREAM_PORT )); then
   warn "Todos estan cerrados: 60000, 55555-55557, 60001-60003."
   if (( MJPEG_FALLBACK )); then
     [[ -x "$REMOTE_MJPEG_SCRIPT" || -f "$REMOTE_MJPEG_SCRIPT" ]] || die "Falta helper: $REMOTE_MJPEG_SCRIPT"
-    command -v "$PROBE_PYTHON" >/dev/null 2>&1 || die "No encontre python para lanzar fallback MJPEG."
     say "Intentando fallback MJPEG por SSH hacia $ROBOT_IP"
-    "$PROBE_PYTHON" "$REMOTE_MJPEG_SCRIPT" --host "$ROBOT_IP"
+    "$VENV_DIR/bin/python" "$REMOTE_MJPEG_SCRIPT" --host "$ROBOT_IP"
     cat <<EOF
 
 Fallback activo:
@@ -251,6 +255,8 @@ Cuando levantes el server en el robot, vuelve a correr exactamente:
 EOF
   exit 2
 fi
+
+[[ -n "$TELEIMAGER_SRC" ]] || die "Detecte stream, pero falta clonar `teleimager` para usar el cliente OpenCV oficial."
 
 if [[ -z "${DISPLAY:-}" ]]; then
   warn "No veo la variable DISPLAY. OpenCV no podra abrir ventanas en este shell."

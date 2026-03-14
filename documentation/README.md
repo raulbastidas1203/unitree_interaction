@@ -5,6 +5,7 @@
 - `01_camera_worklog.md`: deteccion, diagnostico y solucion minima de camara.
 - `02_audio_worklog.md`: inspeccion del SDK oficial y pruebas de audio/TTS.
 - `03_inventory_and_changes.md`: inventario de archivos, entornos y cambios reales.
+- `04_installation_guide.md`: guia reproducible para instalar en laptop y robot.
 
 ## Resumen rapido
 

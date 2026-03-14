@@ -129,12 +129,6 @@ detect_iface() {
     printf '%s\n' "$iface"
     return 0
   fi
-
-  iface="$(ip -4 -o addr show | awk '$2 != "lo" {print $2; exit}')"
-  if [[ -n "$iface" ]]; then
-    printf '%s\n' "$iface"
-    return 0
-  fi
 }
 
 while [[ $# -gt 0 ]]; do
@@ -182,7 +176,7 @@ say "  python base: ${BASE_PYTHON:-NO_ENCONTRADO}"
 ensure_python_env "$BASE_PYTHON"
 
 NET_IFACE="${NET_IFACE:-$(detect_iface || true)}"
-[[ -n "$NET_IFACE" ]] || die "No pude inferir la interfaz. Define NET_IFACE manualmente."
+[[ -n "$NET_IFACE" ]] || die "No pude inferir con seguridad la interfaz hacia el robot. Define NET_IFACE manualmente, por ejemplo NET_IFACE=enp3s0."
 say "Interfaz detectada: $NET_IFACE"
 
 if [[ -n "$UNITREE_SDK2_REPO_DETECTED" ]]; then
