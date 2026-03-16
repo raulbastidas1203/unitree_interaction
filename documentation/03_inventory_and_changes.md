@@ -8,6 +8,17 @@
 - `/home/raul/ucv/nh_unitree_camera_remote_mjpeg.py`
 - `/home/raul/ucv/nh_unitree_audio_test.sh`
 - `/home/raul/ucv/nh_unitree_tts.py`
+- `/home/raul/ucv/nh_desktop_setup.sh`
+- `/home/raul/ucv/requirements-desktop.txt`
+- `/home/raul/ucv/core/`
+- `/home/raul/ucv/adapters/`
+- `/home/raul/ucv/gui_desktop/`
+- `/home/raul/ucv/tools/`
+- `/home/raul/ucv/run_desktop_gui.py`
+- `/home/raul/ucv/verify_unitree.py`
+- `/home/raul/ucv/ANDROID_MIGRATION.md`
+- `/home/raul/ucv/TEST_PLAN.md`
+- `/home/raul/ucv/documentation/05_refactor_summary.md`
 
 ## Entornos Python creados en la laptop
 
@@ -39,11 +50,16 @@ Ruta:
 
 - `/home/raul/ucv/nh_unitree_sdk2_venv`
 
-Paquetes observados:
+Paquetes observados al final de este refactor:
 
 - `cyclonedds==0.10.2`
+- `edge-tts==7.2.7`
 - `numpy==2.2.6`
 - `opencv-python==4.13.0.92`
+- `pexpect==4.9.0`
+- `PySide6==6.10.2`
+- `PyYAML==6.0.3`
+- `pyzmq==27.1.0`
 - `rich==14.3.3`
 
 ## Cambios reales en el robot
@@ -73,44 +89,56 @@ Archivos creados:
 
 ## Lo que se intento y no se instalo
 
-`teleimager` completo del lado del robot no se instalo porque:
+`teleimager` completo del lado del robot no quedó instalado en esta sesión porque:
 
 - faltaban dependencias Python adicionales;
-- el robot no estaba resolviendo Internet/DNS para descargarlas;
-- se priorizo no tocar configuraciones existentes ni forzar instalaciones incompletas.
+- la validación mínima ya quedó resuelta con el fallback MJPEG;
+- se priorizó no tocar configuraciones existentes ni forzar una instalación incompleta.
 
 ## Estado de red observado
 
-### Durante las pruebas exitosas
+### Validación más reciente exitosa
 
 - laptop:
-  - `enp3s0 = 192.168.123.100/24`
+  - `enp3s0 = 192.168.123.50/24`
+  - `wlo1 = 10.128.129.104/19`
 - robot:
   - `192.168.123.164`
 
-### Estado final de la sesion
+Observación:
 
-- `enp3s0`: `NO-CARRIER`
-- `wlo1`: `192.168.1.22/24`
-
-Impacto:
-
-- los scripts que autodetectan interfaz ya no alcanzan al robot si el enlace Ethernet se cae;
-- en ese estado, las llamadas del SDK devolvieron `3102`.
+- la ruta real al robot sale por `enp3s0`;
+- el modo `wifi` quedó implementado y probado a nivel de diagnóstico, pero no validado extremo a extremo porque no había una ruta Wi-Fi real hacia el robot en esta red.
 
 ## Resultado consolidado
 
 ### Camara
 
-- funciono una solucion minima por navegador/MJPEG cuando el robot estaba alcanzable;
-- el stream primario fue `/dev/video4`.
+- funcionó la solución mínima por navegador/MJPEG cuando el robot estuvo alcanzable;
+- URL validada:
+  - `http://192.168.123.164:8080/`
+  - `http://192.168.123.164:8080/primary.mjpg`
 
 ### Audio
 
-- funcionaron TTS y WAV usando el SDK oficial del G1 cuando la interfaz correcta era `enp3s0`.
+- funcionaron lectura de volumen, escritura de volumen y reproducción de audio usando el SDK oficial del G1 cuando la interfaz correcta fue `enp3s0`;
+- el TTS en español quedó resuelto con fallback externo a WAV;
+- el TTS nativo Unitree sigue disponible, pero no se marcó como validado para español.
+
+### Verificación unificada
+
+El comando `python verify_unitree.py --robot-ip 192.168.123.164 --connection-mode auto --robot-password 123 --tts-engine auto` devolvió:
+
+- `Red: OK`
+- `SDK: OK`
+- `Volumen: OK`
+- `Audio: OK`
+- `Cámara: OK`
+- `Estado general: OK`
 
 ## Riesgos y advertencias
 
 - no se guardaron passwords en estos archivos;
-- los comandos documentados usan placeholder `<ssh_password>` cuando aplica;
-- el repo se preparo para subir solo scripts y documentacion, no los venvs.
+- el TTS externo con `edge-tts` requiere Internet;
+- para un laboratorio offline se recomienda instalar `espeak-ng` en la laptop;
+- el repo está preparado para subir código y documentación, no los venvs locales.

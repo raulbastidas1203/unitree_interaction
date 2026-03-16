@@ -1,124 +1,156 @@
 # unitree_interaction
 
-Herramientas y documentacion para validar interaccion basica con un Unitree G1 desde una laptop Ubuntu 22.04, sin VR y sin teleoperacion completa.
+Control y verificación de un Unitree G1 desde Ubuntu 22.04, priorizando herramientas oficiales de Unitree y un flujo mínimo para audio, volumen, cámara y conectividad. El repo está pensado primero para desktop y deja la lógica separada para una futura migración a Android.
 
-Este repo deja dos flujos listos:
+## Estado actual validado
 
-- camara: deteccion, diagnostico y stream minimo hacia navegador o cliente OpenCV;
-- audio: TTS, reproduccion WAV y prueba de volumen usando el SDK oficial de Unitree.
+- Cámara: validada con fallback MJPEG remoto en `http://192.168.123.164:8080/`.
+- Cámara RGB oficial: validada desde `videohub_pc4` por multicast `230.1.1.1:1720`, relayed localmente a `http://127.0.0.1:18080/`.
+- Audio: validado con `AudioClient` oficial de `unitree_sdk2_python`.
+- Volumen: lectura y escritura validadas desde la laptop.
+- Español: el TTS nativo del robot existe, pero el español no quedó validado; el modo `auto` usa por defecto un fallback externo en español a WAV.
+- Red: validado por Ethernet en `enp3s0 -> 192.168.123.164`.
+- Wi-Fi: la arquitectura lo soporta, pero en esta red concreta el robot estaba ruteado por Ethernet; `--connection-mode wifi` falla de forma explícita si la ruta real no sale por una NIC Wi-Fi.
 
-## Que incluye
+## Revisión del repo y reutilización
 
-- `nh_unitree_camera_test.sh`
-- `nh_unitree_camera_probe.py`
-- `nh_unitree_camera_mjpeg_server.py`
-- `nh_unitree_camera_remote_mjpeg.py`
-- `nh_unitree_audio_test.sh`
-- `nh_unitree_tts.py`
-- `documentation/`
+Antes del refactor ya existían estos scripts útiles:
 
-## Que NO incluye y por que
+- Audio:
+  - `nh_unitree_audio_test.sh`
+  - `nh_unitree_tts.py`
+- Cámara:
+  - `nh_unitree_camera_test.sh`
+  - `nh_unitree_camera_probe.py`
+  - `nh_unitree_camera_mjpeg_server.py`
+  - `nh_unitree_camera_remote_mjpeg.py`
 
-No se subieron estas carpetas locales:
+Qué se reutiliza ahora:
 
-- `nh_unitree_camera_venv/`
-- `nh_unitree_sdk2_venv/`
-- `__pycache__/`
+- `unitree_sdk2_python` oficial para `AudioClient`, `GetVolume`, `SetVolume`, `TtsMaker`, `PlayStream` y `PlayStop`.
+- `nh_unitree_camera_probe.py` para diagnosticar puertos/stream.
+- `nh_unitree_camera_mjpeg_server.py` como fallback mínimo de cámara cuando no hay `teleimager` operativo.
+- Los scripts `nh_` siguen vivos como flujos legados y de diagnóstico rápido.
 
-Motivo:
+Limitaciones actuales que quedaron documentadas con honestidad:
 
-- son artefactos generados localmente;
-- contienen rutas absolutas de una sola máquina;
-- no son portables ni confiables para otra laptop;
-- los scripts de este repo vuelven a crear lo necesario en una máquina nueva.
+- No se validó que el TTS nativo del robot hable español; por eso `auto` usa `external_spanish_tts_wav`.
+- Si usas `edge-tts`, la laptop necesita Internet. Para un laboratorio offline, instala `espeak-ng`.
+- La vista embebida en la GUI usa MJPEG/OpenCV. Para la RGB oficial, ahora se levanta un relay local desde `videohub_pc4`.
+- `teleimager` oficial sigue siendo opcional; el flujo mínimo validado hoy es el fallback MJPEG más el SDK oficial para audio.
 
-Tampoco se “vendorearon” completos los repos oficiales de Unitree dentro de este repo. En vez de eso, se documenta cómo clonarlos directamente desde las fuentes oficiales.
+## Arquitectura nueva
 
-## Requisitos minimos
+```text
+core/          logica de negocio, modelos, red, verificacion
+adapters/      SDK Unitree, TTS externo, SSH, camara
+gui_desktop/   interfaz PySide6 y workers no bloqueantes
+tools/         CLI de verificacion y pruebas modulares
+run_desktop_gui.py
+verify_unitree.py
+```
 
-### En la laptop
+Objetivo de esta separación:
 
-- Ubuntu 22.04
-- `git`
-- `python3`
-- `python3-venv`
-- conectividad IP hacia el robot
-- para cámara por fallback remoto:
-  - acceso SSH al robot
+- `core/` no depende de widgets.
+- `adapters/` encapsula Unitree SDK, TTS y stream de cámara.
+- `gui_desktop/` consume la lógica como cliente.
+- `tools/` reutiliza la misma lógica desde terminal.
 
-Instalacion base recomendada en la laptop:
+## Instalación en laptop
+
+### Requisitos del sistema
 
 ```bash
 sudo apt update
-sudo apt install -y git curl python3 python3-venv python3-pip
+sudo apt install -y git python3 python3-venv python3-pip ffmpeg
 ```
 
-## Clonar este repo
+Opcional para TTS offline:
+
+```bash
+sudo apt install -y espeak-ng
+```
+
+### Clonar repos
 
 ```bash
 git clone https://github.com/raulbastidas1203/unitree_interaction.git
 cd unitree_interaction
-```
 
-## Clonar los repos oficiales de Unitree
-
-Recomendado en la laptop:
-
-```bash
 mkdir -p ~/robotic/repos
-git clone https://github.com/unitreerobotics/teleimager.git ~/robotic/repos/teleimager
 git clone https://github.com/unitreerobotics/unitree_sdk2_python.git ~/robotic/repos/unitree_sdk2_python
+git clone https://github.com/unitreerobotics/teleimager.git ~/robotic/repos/teleimager
 ```
 
-Con eso, los scripts de este repo detectan automaticamente las rutas esperadas. Si tus clones viven en otro sitio, puedes exportar:
+Si tus repos oficiales viven en otro lugar:
 
 ```bash
 export UNITREE_SDK2_REPO=/ruta/a/unitree_sdk2_python
+export UNITREE_TELEIMAGER_REPO=/ruta/a/teleimager
 ```
 
-## Instalacion para cámara
+### Crear el entorno Python desktop
 
-### Laptop
-
-El script crea un venv local e instala automaticamente estas dependencias cliente cuando hacen falta:
-
-- `numpy<2`
-- `PyYAML`
-- `pyzmq`
-- `opencv-python`
-- `logging_mp`
-- `pexpect`
-
-No hace falta instalar eso a mano si vas a usar:
+Opción rápida:
 
 ```bash
-./nh_unitree_camera_test.sh
+./nh_desktop_setup.sh
+source .venv/bin/activate
 ```
 
-o
+Si tu `python3` apunta a 3.13 y `cyclonedds` falla, usa explícitamente Python 3.10:
 
 ```bash
-ROBOT_IP=192.168.123.164 ROBOT_PASSWORD='<ssh_password>' ./nh_unitree_camera_test.sh --mjpeg-fallback
+PYTHON_BIN=python3.10 ./nh_desktop_setup.sh
+source .venv/bin/activate
 ```
 
-### Robot
-
-Hay dos caminos.
-
-#### Camino A: oficial `teleimager`
-
-Usalo si el robot ya tiene el entorno oficial listo o si quieres seguir el stack de Unitree completo.
-
-En el robot:
+Opción manual:
 
 ```bash
-cd ~/teleimager
-export PYTHONPATH=$PWD/src
-python3 -m teleimager.image_server --cf
-python3 -m teleimager.image_server
+python3.10 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements-desktop.txt
 ```
 
-Si `teleimager` no existe en el robot, clónalo:
+## Requisitos del robot
+
+### Audio
+
+No se instaló nada nuevo en el robot para audio. La laptop usa el SDK oficial hacia los servicios ya presentes en el robot.
+
+### Cámara mínima validada
+
+Se necesita en el robot:
+
+- `python3`
+- acceso SSH
+- una cámara visible como `/dev/video*`
+- OpenCV disponible para Python si vas a usar el fallback MJPEG
+
+Chequeo rápido:
+
+```bash
+python3 - <<'PY'
+import cv2
+print(cv2.__version__)
+PY
+
+ls -l /dev/video* /dev/media* 2>/dev/null
+```
+
+Si falta OpenCV:
+
+```bash
+sudo apt update
+sudo apt install -y python3-opencv
+```
+
+### teleimager oficial opcional
+
+Si quieres intentar el camino oficial completo en el robot:
 
 ```bash
 git clone https://github.com/unitreerobotics/teleimager.git ~/teleimager
@@ -126,7 +158,6 @@ cd ~/teleimager
 python3 -m venv ~/teleimager_venv
 source ~/teleimager_venv/bin/activate
 pip install -U pip
-sudo apt update
 sudo apt install -y libusb-1.0-0-dev libturbojpeg-dev
 pip install -e ".[server]"
 bash setup_uvc.sh
@@ -135,126 +166,157 @@ python3 -m teleimager.image_server --cf
 python3 -m teleimager.image_server
 ```
 
-Nota:
-
-- en la sesión original del robot no se llegó a completar esta instalación porque ese robot no resolvía DNS/Internet para descargar dependencias;
-- por eso el repo también deja un fallback mínimo que no depende de instalar `teleimager` en el robot.
-
-#### Camino B: fallback mínimo MJPEG
-
-Este camino fue el que sí quedó validado cuando el robot estuvo accesible por Ethernet.
-
-Requisitos en el robot:
-
-- `python3`
-- `opencv-python` o `python3-opencv`
-- una cámara visible como `/dev/video*`
-- acceso SSH
-
-Para comprobar OpenCV en el robot:
-
-```bash
-python3 - <<'PY'
-import cv2
-print(cv2.__version__)
-PY
-```
-
-Si falla, instala en el robot:
-
-```bash
-sudo apt update
-sudo apt install -y python3-opencv
-```
-
-Luego, desde la laptop:
-
-```bash
-ROBOT_IP=192.168.123.164 ROBOT_PASSWORD='<ssh_password>' ./nh_unitree_camera_test.sh --mjpeg-fallback
-```
-
-Eso copia `nh_unitree_camera_mjpeg_server.py` al robot, lo arranca por SSH y expone:
-
-- `http://ROBOT_IP:8080/`
-- `http://ROBOT_IP:8080/primary.mjpg`
-- `http://ROBOT_IP:8080/healthz`
-
-## Instalacion para audio
-
-### Laptop
-
-El flujo de audio usa el repo oficial `unitree_sdk2_python`.
-
-El script crea un venv local e instala automaticamente:
-
-- `cyclonedds==0.10.2`
-
-No instala el SDK por `pip`; lo importa desde el repo oficial clonado mediante `PYTHONPATH`.
-
-### Robot
-
-Para audio no se instaló nada en el robot en esta sesión. Todo se hizo desde la laptop usando el SDK oficial de Unitree hacia el servicio del robot.
-
 ## Uso rápido
 
-### 1. Cámara
-
-Con `teleimager` oficial ya corriendo en el robot:
+### Verificación formal del robot
 
 ```bash
-./nh_unitree_camera_test.sh
+source .venv/bin/activate
+python verify_unitree.py \
+  --robot-ip 192.168.123.164 \
+  --robot-password 123 \
+  --tts-engine auto
 ```
 
-Con fallback MJPEG por SSH:
+La verificación comprueba:
+
+- Red
+- SDK
+- Volumen
+- Audio
+- Cámara
+
+Y devuelve `OK`, `WARNING` o `FAIL`.
+
+### GUI desktop
 
 ```bash
-ROBOT_IP=192.168.123.164 ROBOT_PASSWORD='<ssh_password>' ./nh_unitree_camera_test.sh --mjpeg-fallback
+source .venv/bin/activate
+python run_desktop_gui.py
 ```
 
-### 2. Audio
+Desde la GUI puedes:
 
-Si la interfaz conectada al robot es `enp3s0`:
+- elegir IP del robot y NIC;
+- seleccionar `Auto`, `Ethernet` o `Wi-Fi`;
+- probar conexión;
+- verificar el robot;
+- leer y aplicar volumen;
+- escribir una frase en español;
+- elegir `Unitree nativo`, `Español externo a WAV` o `Auto`;
+- iniciar, abrir y detener cámara;
+- ver logs en tiempo real.
+
+### Pruebas CLI modulares
+
+Conectividad:
 
 ```bash
-NET_IFACE=enp3s0 ./nh_unitree_audio_test.sh
+source .venv/bin/activate
+python tools/test_connectivity.py --robot-ip 192.168.123.164 --connection-mode auto
 ```
 
-Cambiar frase:
+TTS español:
 
 ```bash
-NET_IFACE=enp3s0 ./nh_unitree_audio_test.sh --text "Hola, prueba de voz del Unitree G1"
+source .venv/bin/activate
+python tools/test_spanish_tts.py \
+  --robot-ip 192.168.123.164 \
+  --connection-mode auto \
+  --tts-engine auto \
+  --text "Hola, esta es una prueba en español"
 ```
 
-Forzar WAV:
+Volumen:
 
 ```bash
-NET_IFACE=enp3s0 ./nh_unitree_sdk2_venv/bin/python ./nh_unitree_tts.py \
-  --repo ~/robotic/repos/unitree_sdk2_python \
-  --iface enp3s0 \
-  --mode wav \
-  --wav ~/robotic/repos/unitree_sdk2_python/example/g1/audio/test.wav
+source .venv/bin/activate
+python tools/test_volume.py --robot-ip 192.168.123.164 --connection-mode auto
+python tools/test_volume.py --robot-ip 192.168.123.164 --connection-mode auto --set 70
 ```
 
-Ejemplo oficial VUI de Unitree:
+Cámara:
 
 ```bash
-NET_IFACE=enp3s0 ./nh_unitree_audio_test.sh --official-vui-example
+source .venv/bin/activate
+python tools/test_camera.py \
+  --robot-ip 192.168.123.164 \
+  --connection-mode auto \
+  --robot-password 123
 ```
 
-## Nota importante sobre la interfaz de red
+Si la RGB oficial está disponible, este comando ahora debe devolver:
 
-Los scripts de audio solo autodetectan una interfaz si encuentran una IP del estilo `192.168.123.x`. Si no pueden inferirla con seguridad, debes fijarla manualmente:
+- `mode=videohub_rgb_relay`
+- `viewer_url=http://127.0.0.1:18080/`
+- `preview_url=http://127.0.0.1:18080/primary.mjpg`
+
+## Ethernet y Wi-Fi
+
+Modos soportados:
+
+- `auto`: usa la ruta real al robot y cae a selección por subred si hace falta.
+- `ethernet`: obliga a que la ruta elegida sea una interfaz Ethernet.
+- `wifi`: obliga a que la ruta elegida sea una interfaz Wi-Fi.
+
+Ejemplo Ethernet:
 
 ```bash
-NET_IFACE=enp3s0 ./nh_unitree_audio_test.sh
+python verify_unitree.py --robot-ip 192.168.123.164 --connection-mode ethernet --robot-password 123
 ```
 
-Eso evita seleccionar por error una interfaz Wi-Fi que no apunta al robot.
+Ejemplo Wi-Fi:
 
-## Documentacion detallada
+```bash
+python verify_unitree.py --robot-ip 192.168.123.164 --connection-mode wifi --net-iface wlo1 --robot-password 123
+```
+
+Si el robot no está realmente accesible por Wi-Fi, el sistema no lo simula: devuelve un diagnóstico claro indicando NIC equivocada, ruta por otra interfaz, subred incorrecta o posible aislamiento de clientes.
+
+## Resultado validado en esta máquina
+
+Comando validado:
+
+```bash
+source nh_unitree_sdk2_venv/bin/activate
+python verify_unitree.py \
+  --robot-ip 192.168.123.164 \
+  --connection-mode auto \
+  --robot-password 123 \
+  --tts-engine auto
+```
+
+Resultado observado:
+
+- Red: `OK`
+- SDK: `OK`
+- Volumen: `OK`
+- Audio: `OK`
+- Cámara: `OK`
+- Estado general: `OK`
+
+Notas:
+
+- La ruta elegida fue `enp3s0` con IP local `192.168.123.50`.
+- El motor efectivo de voz fue `external_spanish_tts_wav` con `edge-tts:es-ES-XimenaNeural`.
+- La cámara quedó disponible en `http://192.168.123.164:8080/`.
+- La cámara RGB oficial quedó disponible localmente en `http://127.0.0.1:18080/`.
+
+## Scripts legados que se mantienen
+
+- `nh_unitree_audio_test.sh`
+- `nh_unitree_tts.py`
+- `nh_unitree_camera_test.sh`
+- `nh_unitree_camera_probe.py`
+- `nh_unitree_camera_mjpeg_server.py`
+- `nh_unitree_camera_remote_mjpeg.py`
+
+Sirven como compatibilidad con el flujo anterior y como utilidades de diagnóstico específicas.
+
+## Más documentación
 
 - [documentation/README.md](documentation/README.md)
-- [documentation/01_camera_worklog.md](documentation/01_camera_worklog.md)
-- [documentation/02_audio_worklog.md](documentation/02_audio_worklog.md)
-- [documentation/03_inventory_and_changes.md](documentation/03_inventory_and_changes.md)
 - [documentation/04_installation_guide.md](documentation/04_installation_guide.md)
+- [documentation/05_refactor_summary.md](documentation/05_refactor_summary.md)
+- [ANDROID_MIGRATION.md](ANDROID_MIGRATION.md)
+- [TEST_PLAN.md](TEST_PLAN.md)

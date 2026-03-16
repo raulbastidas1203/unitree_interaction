@@ -2,48 +2,82 @@
 
 ## Objetivo
 
-Que otra persona pueda clonar este repo, ir al lab con el robot y ejecutar cámara o audio sin depender de los venvs o rutas de la laptop original.
+Que otra persona pueda clonar este repo, llegar al laboratorio con una laptop Ubuntu 22.04 y dejar funcionando:
 
-## 1. Preparar la laptop Ubuntu 22.04
+- verificación formal del robot;
+- TTS en español;
+- control de volumen;
+- cámara;
+- GUI desktop.
+
+## 1. Preparar la laptop
+
+Instala paquetes base:
 
 ```bash
 sudo apt update
-sudo apt install -y git curl python3 python3-venv python3-pip
+sudo apt install -y git python3 python3-venv python3-pip ffmpeg
 ```
 
-Clonar este repo:
+Opcional, pero recomendado para TTS offline:
+
+```bash
+sudo apt install -y espeak-ng
+```
+
+## 2. Clonar repos
 
 ```bash
 git clone https://github.com/raulbastidas1203/unitree_interaction.git
 cd unitree_interaction
+
+mkdir -p ~/robotic/repos
+git clone https://github.com/unitreerobotics/unitree_sdk2_python.git ~/robotic/repos/unitree_sdk2_python
+git clone https://github.com/unitreerobotics/teleimager.git ~/robotic/repos/teleimager
 ```
 
-Clonar repos oficiales recomendados:
+## 3. Crear entorno Python de la laptop
+
+Rápido:
 
 ```bash
-mkdir -p ~/robotic/repos
-git clone https://github.com/unitreerobotics/teleimager.git ~/robotic/repos/teleimager
-git clone https://github.com/unitreerobotics/unitree_sdk2_python.git ~/robotic/repos/unitree_sdk2_python
+./nh_desktop_setup.sh
+source .venv/bin/activate
 ```
 
-## 2. Preparar el robot para cámara
+Si `python3` resuelve a 3.13 y ves un fallo al instalar `cyclonedds`, corre:
 
-### Opción mínima validada
+```bash
+rm -rf .venv
+PYTHON_BIN=python3.10 ./nh_desktop_setup.sh
+source .venv/bin/activate
+```
 
-Solo se necesita:
+Manual:
 
-- acceso SSH al robot;
-- `python3` en el robot;
-- `cv2` disponible en el robot;
-- una cámara visible como `/dev/video*`.
+```bash
+python3.10 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements-desktop.txt
+```
 
-Comprobación rápida en el robot:
+## 4. Verificar prerequisitos en el robot
+
+### Audio
+
+No hay instalación obligatoria del lado del robot para audio. El flujo validado usa el SDK oficial desde la laptop.
+
+### Cámara mínima
+
+En el robot, verifica:
 
 ```bash
 python3 - <<'PY'
 import cv2
 print(cv2.__version__)
 PY
+
 ls -l /dev/video* /dev/media* 2>/dev/null
 ```
 
@@ -54,9 +88,75 @@ sudo apt update
 sudo apt install -y python3-opencv
 ```
 
-## 3. Preparar el robot para `teleimager` oficial
+## 5. Probar primero conectividad y verificación
 
-Solo si quieres el camino oficial completo.
+Desde la laptop:
+
+```bash
+source .venv/bin/activate
+python verify_unitree.py \
+  --robot-ip 192.168.123.164 \
+  --robot-password 123 \
+  --tts-engine auto
+```
+
+Resultado esperado:
+
+- `Red: OK`
+- `SDK: OK`
+- `Volumen: OK`
+- `Audio: OK`
+- `Cámara: OK` o `WARNING`
+
+## 6. Usar la GUI
+
+```bash
+source .venv/bin/activate
+python run_desktop_gui.py
+```
+
+Configura en la GUI:
+
+- `IP robot`: `192.168.123.164` o la IP real en tu lab
+- `NIC`: la interfaz correcta o déjala en `Auto`
+- `Modo`: `Auto`, `Ethernet` o `Wi-Fi`
+- `SSH user`: `unitree`
+- `SSH password`: la contraseña del robot si vas a usar fallback MJPEG
+
+## 7. Uso por Ethernet
+
+Ejemplo explícito:
+
+```bash
+python verify_unitree.py \
+  --robot-ip 192.168.123.164 \
+  --connection-mode ethernet \
+  --robot-password 123
+```
+
+## 8. Uso por Wi-Fi
+
+Solo funcionará si:
+
+- robot y laptop están en la misma red o tienen routing válido;
+- el SDK puede enlazar correctamente por esa NIC;
+- la red no aísla clientes.
+
+Ejemplo:
+
+```bash
+python verify_unitree.py \
+  --robot-ip 192.168.123.164 \
+  --connection-mode wifi \
+  --net-iface wlo1 \
+  --robot-password 123
+```
+
+Si la ruta real sale por Ethernet, el script lo dirá claramente y no fingirá soporte Wi-Fi.
+
+## 9. Cámara oficial opcional con teleimager
+
+Si quieres intentar el flujo oficial completo del lado del robot:
 
 ```bash
 git clone https://github.com/unitreerobotics/teleimager.git ~/teleimager
@@ -64,110 +164,35 @@ cd ~/teleimager
 python3 -m venv ~/teleimager_venv
 source ~/teleimager_venv/bin/activate
 pip install -U pip
-sudo apt update
 sudo apt install -y libusb-1.0-0-dev libturbojpeg-dev
 pip install -e ".[server]"
 bash setup_uvc.sh
-```
-
-Descubrir cámaras:
-
-```bash
-cd ~/teleimager
 export PYTHONPATH=$PWD/src
 python3 -m teleimager.image_server --cf
-```
-
-Levantar servidor:
-
-```bash
-cd ~/teleimager
-export PYTHONPATH=$PWD/src
 python3 -m teleimager.image_server
 ```
 
-## 4. Instalar y correr cámara desde la laptop
-
-### Con `teleimager` oficial
+En la laptop puedes seguir usando el legado:
 
 ```bash
 ./nh_unitree_camera_test.sh
 ```
 
-### Con fallback mínimo MJPEG
+## 10. Qué quedó instalado realmente en esta máquina de desarrollo
 
-```bash
-ROBOT_IP=192.168.123.164 ROBOT_PASSWORD='<ssh_password>' ./nh_unitree_camera_test.sh --mjpeg-fallback
-```
+En `nh_unitree_sdk2_venv` se instalaron y validaron:
 
-Esto crea automaticamente un venv local para cámara e instala:
-
-- `numpy<2`
+- `PySide6`
+- `av`
+- `cyclonedds==0.10.2`
+- `edge-tts`
+- `opencv-python`
+- `pexpect`
 - `PyYAML`
 - `pyzmq`
-- `opencv-python`
-- `logging_mp`
-- `pexpect`
 
-## 5. Instalar y correr audio desde la laptop
+En el robot, durante este refactor:
 
-Con el repo oficial `unitree_sdk2_python` clonado, basta:
-
-```bash
-NET_IFACE=enp3s0 ./nh_unitree_audio_test.sh
-```
-
-El script crea automaticamente un venv local de SDK e instala:
-
-- `cyclonedds==0.10.2`
-
-### TTS
-
-```bash
-NET_IFACE=enp3s0 ./nh_unitree_audio_test.sh --text "Hola, prueba de voz del Unitree G1"
-```
-
-### WAV
-
-```bash
-NET_IFACE=enp3s0 ./nh_unitree_sdk2_venv/bin/python ./nh_unitree_tts.py \
-  --repo ~/robotic/repos/unitree_sdk2_python \
-  --iface enp3s0 \
-  --mode wav \
-  --wav ~/robotic/repos/unitree_sdk2_python/example/g1/audio/test.wav
-```
-
-### Ejemplo oficial VUI
-
-```bash
-NET_IFACE=enp3s0 ./nh_unitree_audio_test.sh --official-vui-example
-```
-
-## 6. Si algo falla
-
-### Cámara
-
-- si no responde `192.168.123.164`, verifica cable/red;
-- si no hay `/dev/video*` en el robot, el problema es del lado del robot/cámara;
-- si el fallback MJPEG no levanta, revisa:
-  - `/tmp/nh_unitree_camera_mjpeg_server.log` en el robot.
-
-### Audio
-
-- si el script no detecta interfaz, fija `NET_IFACE` manualmente;
-- si ves `3102`, normalmente estás usando la interfaz equivocada o el robot no es alcanzable por esa ruta;
-- si el SDK no importa, verifica:
-  - `UNITREE_SDK2_REPO`
-  - `PYTHONPATH`
-  - `nh_unitree_sdk2_venv`
-
-## 7. Resumen práctico
-
-Para una laptop nueva, los pasos mínimos reales son:
-
-1. instalar `git`, `python3`, `python3-venv`, `python3-pip`;
-2. clonar este repo;
-3. clonar `unitree_sdk2_python`;
-4. opcionalmente clonar `teleimager`;
-5. para cámara por fallback, asegurar `cv2` en el robot;
-6. correr los scripts `nh_`.
+- no se instaló nada nuevo para audio;
+- no se instaló `teleimager`;
+- solo se copió y ejecutó temporalmente `nh_unitree_camera_mjpeg_server.py` cuando se necesitó fallback de cámara.

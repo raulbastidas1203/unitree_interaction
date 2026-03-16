@@ -1,0 +1,7 @@
+PySide6>=6.8,<7
+numpy>=1.26,<3
+opencv-python>=4.8,<5
+pexpect>=4.9,<5
+edge-tts>=7,<8
+cyclonedds==0.10.2
+av>=17,<18
