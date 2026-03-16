@@ -308,6 +308,7 @@ Comportamiento real en `UCV`:
 - TTS español por Wi-Fi: `OK` vía fallback `ssh_pulseaudio`
 - cámara por Wi-Fi: `OK` vía fallback MJPEG en `http://10.128.129.52:8080/`
 - SDK directo de audio por Wi-Fi: `WARNING`, devuelve `code=3102`
+- prueba adicional: incluso reiniciando el robot con `unitree1` desactivado, el SDK directo siguió fallando por `wlan0`
 
 Regla práctica:
 

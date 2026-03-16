@@ -112,6 +112,28 @@ Motivo del `WARNING`:
 - pero el SDK directo de audio no respondió por Wi-Fi en esta NIC;
 - el repo compensó eso con fallback `SSH/PulseAudio`.
 
+## Diagnóstico adicional del SDK directo por Wi-Fi
+
+Se hicieron pruebas extra para verificar si el problema era solo de routing o de orden de arranque:
+
+- se reinició el robot con `wlan0` ya conectado a `UCV`;
+- se desactivó temporalmente `unitree1` (`eth0`) y se volvió a reiniciar;
+- se volvió a probar `GetVolume` directo por `wlo1`.
+
+Resultado:
+
+- el SDK directo siguió devolviendo `code=3102`;
+- en la laptop se observaron únicamente paquetes DDS salientes a `239.255.0.1:7400`;
+- no hubo respuestas RTPS/DDS desde el robot por Wi-Fi;
+- en el robot, `ip maddr show dev wlan0` no mostró suscripción a `239.255.0.1`;
+- la suscripción DDS multicast no apareció en `wlan0` ni siquiera arrancando sin `unitree1` activo.
+
+Lectura técnica:
+
+- el problema ya no parece solo “la laptop eligió mal la NIC”;
+- tampoco parece depender solo de tener Ethernet enchufado;
+- lo más probable es que el servicio DDS/SDK del robot no esté publicando o descubriéndose correctamente por `wlan0` en esta imagen/configuración del robot.
+
 ## Lectura práctica
 
 - si quieres el camino oficial del SDK de audio: usa Ethernet;
