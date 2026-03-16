@@ -28,7 +28,7 @@ class SshClient:
                 continue
             if idx == 1:
                 child.sendline(self.password)
-                continue
+                return
             if idx == 2:
                 return
             raise TimeoutError(child.before)
@@ -45,9 +45,14 @@ class SshClient:
             raise RuntimeError(child.before)
 
     def run(self, remote_cmd: str, timeout: int = 120) -> str:
+        status, output = self.run_with_status(remote_cmd, timeout=timeout)
+        if status not in (0, None):
+            raise RuntimeError(output.strip() or f"ssh remote command failed with exit status {status}")
+        return output
+
+    def run_with_status(self, remote_cmd: str, timeout: int = 120) -> tuple[int | None, str]:
         cmd = f"ssh -o StrictHostKeyChecking=no {shlex.quote(self.user)}@{shlex.quote(self.host)} {shlex.quote(remote_cmd)}"
         child = pexpect.spawn(cmd, encoding="utf-8")
         self._expect_password(child, timeout=timeout)
         child.expect(pexpect.EOF, timeout=timeout)
-        return child.before or ""
-
+        return child.exitstatus, child.before or ""

@@ -136,23 +136,60 @@ python verify_unitree.py \
 
 ## 8. Uso por Wi-Fi
 
-Solo funcionará si:
+En esta sesión quedó validado sobre la red `UCV`, con una limitación honesta:
 
 - robot y laptop están en la misma red o tienen routing válido;
-- el SDK puede enlazar correctamente por esa NIC;
-- la red no aísla clientes.
+- `ping` y `ssh` sí pasan por Wi-Fi;
+- la cámara sí queda usable por Wi-Fi;
+- el SDK directo de audio no respondió por `wlo1` y devolvió `code=3102`;
+- por eso el repo usa fallback `SSH + PulseAudio` para volumen y TTS cuando das `--robot-password`.
+
+Preparación del robot por una sesión Ethernet inicial:
+
+```bash
+sudo rfkill unblock wifi
+sudo nmcli radio wifi on
+nmcli device wifi connect UCV ifname wlan0
+nmcli -f GENERAL.CONNECTION,IP4.ADDRESS dev show wlan0
+```
+
+IP observada en esta red:
+
+- robot Wi-Fi: `10.128.129.52`
+- laptop Wi-Fi: `10.128.129.104`
 
 Ejemplo:
 
 ```bash
 python verify_unitree.py \
-  --robot-ip 192.168.123.164 \
+  --robot-ip 10.128.129.52 \
   --connection-mode wifi \
   --net-iface wlo1 \
   --robot-password 123
 ```
 
-Si la ruta real sale por Ethernet, el script lo dirá claramente y no fingirá soporte Wi-Fi.
+Comandos validados por Wi-Fi:
+
+```bash
+python tools/test_volume.py --robot-ip 10.128.129.52 --connection-mode wifi --net-iface wlo1 --robot-password 123
+python tools/test_spanish_tts.py --robot-ip 10.128.129.52 --connection-mode wifi --net-iface wlo1 --robot-password 123 --tts-engine auto --text "Hola, prueba de audio por wifi desde UCV"
+python tools/test_camera.py --robot-ip 10.128.129.52 --connection-mode wifi --net-iface wlo1 --robot-password 123
+python verify_unitree.py --robot-ip 10.128.129.52 --connection-mode wifi --net-iface wlo1 --robot-password 123 --tts-engine auto
+```
+
+Resultado más reciente por Wi-Fi:
+
+- `Red: OK`
+- `SDK: WARNING`
+- `Volumen: OK`
+- `Audio: OK`
+- `Cámara: OK`
+- `Estado general: WARNING`
+
+Lectura práctica:
+
+- si quieres el camino oficial completo del SDK de audio, usa Ethernet;
+- si quieres operar por Wi-Fi en `UCV`, el flujo ya quedó listo usando el fallback automático con `robot_password`.
 
 ## 9. Cámara oficial opcional con teleimager
 
@@ -195,4 +232,5 @@ En el robot, durante este refactor:
 
 - no se instaló nada nuevo para audio;
 - no se instaló `teleimager`;
-- solo se copió y ejecutó temporalmente `nh_unitree_camera_mjpeg_server.py` cuando se necesitó fallback de cámara.
+- solo se copió y ejecutó temporalmente `nh_unitree_camera_mjpeg_server.py` cuando se necesitó fallback de cámara;
+- se habilitó el radio Wi-Fi y se asoció `wlan0` al SSID `UCV`, sin instalar paquetes nuevos.

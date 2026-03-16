@@ -10,7 +10,8 @@ Control y verificación de un Unitree G1 desde Ubuntu 22.04, priorizando herrami
 - Volumen: lectura y escritura validadas desde la laptop.
 - Español: el TTS nativo del robot existe, pero el español no quedó validado; el modo `auto` usa por defecto un fallback externo en español a WAV.
 - Red: validado por Ethernet en `enp3s0 -> 192.168.123.164`.
-- Wi-Fi: la arquitectura lo soporta, pero en esta red concreta el robot estaba ruteado por Ethernet; `--connection-mode wifi` falla de forma explícita si la ruta real no sale por una NIC Wi-Fi.
+- Wi-Fi en `UCV`: validado con el robot en `10.128.129.52`, cámara accesible y audio/volumen funcionales por fallback SSH/PulseAudio.
+- Wi-Fi en `UCV`, limitación real: el SDK directo de audio por `wlo1` devuelve `GetVolume code=3102`, por eso la verificación queda en `WARNING` y el repo cae automáticamente a SSH si das `--robot-password`.
 
 ## Revisión del repo y reutilización
 
@@ -268,10 +269,50 @@ python verify_unitree.py --robot-ip 192.168.123.164 --connection-mode ethernet -
 Ejemplo Wi-Fi:
 
 ```bash
-python verify_unitree.py --robot-ip 192.168.123.164 --connection-mode wifi --net-iface wlo1 --robot-password 123
+python verify_unitree.py --robot-ip 10.128.129.52 --connection-mode wifi --net-iface wlo1 --robot-password 123
 ```
 
 Si el robot no está realmente accesible por Wi-Fi, el sistema no lo simula: devuelve un diagnóstico claro indicando NIC equivocada, ruta por otra interfaz, subred incorrecta o posible aislamiento de clientes.
+
+### Configuración validada en `UCV`
+
+En esta red, el robot quedó listo así:
+
+```bash
+sudo rfkill unblock wifi
+sudo nmcli radio wifi on
+nmcli device wifi connect UCV ifname wlan0
+nmcli -f GENERAL.CONNECTION,IP4.ADDRESS dev show wlan0
+```
+
+Resultado observado en el robot:
+
+- `wlan0 -> 10.128.129.52/19`
+- `eth0 -> 192.168.123.164/24`
+- `UCV` quedó con `autoconnect=yes`
+
+Comandos validados por Wi-Fi desde la laptop:
+
+```bash
+source .venv/bin/activate
+python tools/test_volume.py --robot-ip 10.128.129.52 --connection-mode wifi --net-iface wlo1 --robot-password 123
+python tools/test_spanish_tts.py --robot-ip 10.128.129.52 --connection-mode wifi --net-iface wlo1 --robot-password 123 --tts-engine auto --text "Hola, prueba de audio por wifi desde UCV"
+python tools/test_camera.py --robot-ip 10.128.129.52 --connection-mode wifi --net-iface wlo1 --robot-password 123
+python verify_unitree.py --robot-ip 10.128.129.52 --connection-mode wifi --net-iface wlo1 --robot-password 123 --tts-engine auto
+```
+
+Comportamiento real en `UCV`:
+
+- `ping` y `ssh`: `OK`
+- volumen por Wi-Fi: `OK` vía fallback `ssh_pulseaudio`
+- TTS español por Wi-Fi: `OK` vía fallback `ssh_pulseaudio`
+- cámara por Wi-Fi: `OK` vía fallback MJPEG en `http://10.128.129.52:8080/`
+- SDK directo de audio por Wi-Fi: `WARNING`, devuelve `code=3102`
+
+Regla práctica:
+
+- si quieres el camino oficial del SDK de audio, usa Ethernet;
+- si quieres operar por Wi-Fi en `UCV`, deja `--robot-password` para que el repo pueda usar el fallback automático de audio/volumen.
 
 ## Resultado validado en esta máquina
 
@@ -302,6 +343,20 @@ Notas:
 - La cámara quedó disponible en `http://192.168.123.164:8080/`.
 - La cámara RGB oficial quedó disponible localmente en `http://127.0.0.1:18080/`.
 
+Validación adicional por Wi-Fi `UCV`:
+
+- laptop: `wlo1 = 10.128.129.104/19`
+- robot: `wlan0 = 10.128.129.52/19`
+- `python verify_unitree.py --robot-ip 10.128.129.52 --connection-mode wifi --net-iface wlo1 --robot-password 123 --tts-engine auto`
+- resultado:
+  - `Red: OK`
+  - `SDK: WARNING`
+  - `Volumen: OK`
+  - `Audio: OK`
+  - `Cámara: OK`
+  - `Estado general: WARNING`
+- motivo del `WARNING`: el SDK directo de audio no respondió por Wi-Fi en `UCV`, pero el fallback SSH dejó volumen y voz funcionando.
+
 ## Scripts legados que se mantienen
 
 - `nh_unitree_audio_test.sh`
@@ -318,5 +373,6 @@ Sirven como compatibilidad con el flujo anterior y como utilidades de diagnósti
 - [documentation/README.md](documentation/README.md)
 - [documentation/04_installation_guide.md](documentation/04_installation_guide.md)
 - [documentation/05_refactor_summary.md](documentation/05_refactor_summary.md)
+- [documentation/06_wifi_ucv_notes.md](documentation/06_wifi_ucv_notes.md)
 - [ANDROID_MIGRATION.md](ANDROID_MIGRATION.md)
 - [TEST_PLAN.md](TEST_PLAN.md)

@@ -52,7 +52,9 @@ class RobotVerifier:
 
         # SDK / volume
         try:
-            volume = self.audio_service.read_volume(iface)
+            code, volume, _ = self.audio_service.unitree.get_volume(iface)
+            if code != 0 or volume is None:
+                raise RuntimeError(f"GetVolume falló con code={code}")
             modules.append(
                 ModuleResult(
                     module="SDK",
@@ -70,14 +72,25 @@ class RobotVerifier:
                 )
             )
         except Exception as exc:
-            modules.append(ModuleResult("SDK", Status.FAIL, f"No pude inicializar SDK/audio: {exc}"))
-            modules.append(ModuleResult("Volumen", Status.FAIL, "No pude leer volumen porque el SDK/audio falló."))
-            probable_causes.append("SDK no enlazó bien a la NIC elegida o el servicio de audio no está disponible.")
-            return VerificationReport(modules=modules, general_status=Status.FAIL, probable_causes=probable_causes)
+            modules.append(ModuleResult("SDK", Status.WARNING, f"SDK/audio directo no respondió por esta NIC: {exc}"))
+            probable_causes.append("SDK no enlazó bien a la NIC elegida o la red bloquea el canal DDS del audio.")
+            try:
+                volume = self.audio_service.read_volume(iface, connection=connection)
+                modules.append(
+                    ModuleResult(
+                        module="Volumen",
+                        status=Status.OK,
+                        message="Volumen leído correctamente por fallback SSH/PulseAudio.",
+                        details={"current_volume": volume},
+                    )
+                )
+            except Exception as volume_exc:
+                modules.append(ModuleResult("Volumen", Status.FAIL, f"No pude leer volumen ni por SDK ni por fallback: {volume_exc}"))
+                return VerificationReport(modules=modules, general_status=Status.FAIL, probable_causes=probable_causes)
 
         # Audio
         try:
-            speech = self.audio_service.speak(iface, audio.text, audio.engine, speaker_id=audio.speaker_id)
+            speech = self.audio_service.speak(iface, audio.text, audio.engine, speaker_id=audio.speaker_id, connection=connection)
             modules.append(
                 ModuleResult(
                     module="Audio",

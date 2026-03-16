@@ -84,7 +84,8 @@ La selección de NIC:
 - el español nativo del robot no está validado;
 - el TTS externo vía `edge-tts` depende de Internet;
 - el preview embebido en GUI funciona con MJPEG, no con WebRTC directo;
-- la validación Wi-Fi no quedó hecha contra este robot en esta red, aunque el soporte está implementado.
+- en la red `UCV`, el SDK directo de audio por Wi-Fi devuelve `GetVolume code=3102`;
+- por eso volumen y TTS por Wi-Fi usan fallback `SSH/PulseAudio` cuando se provee `robot_password`.
 
 ## Qué depende de Ethernet y qué puede funcionar por Wi-Fi
 
@@ -97,7 +98,7 @@ La selección de NIC:
 
 ### Puede funcionar por Wi-Fi si la red lo permite
 
-- volumen, audio y verificación general;
+- volumen y audio vía fallback `SSH/PulseAudio` si el SDK directo no pasa;
 - cámara si el robot es alcanzable y el stream está expuesto o hay SSH;
 - GUI completa.
 
@@ -105,4 +106,17 @@ Condiciones para Wi-Fi:
 
 - robot y laptop en la misma subred o con routing válido;
 - sin aislamiento entre clientes;
-- el SDK enlaza bien por la NIC Wi-Fi elegida.
+- `ssh` operativo si quieres usar los fallbacks;
+- si la red bloquea DDS del SDK, el reporte final quedará en `WARNING`, no en `OK`.
+
+## Validación real en `UCV`
+
+Quedó validado este escenario:
+
+- laptop: `wlo1 = 10.128.129.104/19`
+- robot: `wlan0 = 10.128.129.52/19`
+- reachability: `ping` y `ssh` correctos
+- volumen: `OK` por `ssh_pulseaudio`
+- TTS español: `OK` por `ssh_pulseaudio`
+- cámara: `OK` por fallback MJPEG en `http://10.128.129.52:8080/`
+- SDK directo de audio: `WARNING`

@@ -87,6 +87,16 @@ Archivos creados:
 
 - ninguno
 
+### Red / Wi-Fi
+
+Cambios de configuración realizados:
+
+- se desbloqueó el radio Wi-Fi (`rfkill unblock wifi`);
+- se habilitó `nmcli radio wifi on`;
+- se conectó `wlan0` al SSID `UCV`;
+- el robot obtuvo IP `10.128.129.52/19`;
+- no se instalaron paquetes nuevos para esto.
+
 ## Lo que se intento y no se instalo
 
 `teleimager` completo del lado del robot no quedó instalado en esta sesión porque:
@@ -97,7 +107,7 @@ Archivos creados:
 
 ## Estado de red observado
 
-### Validación más reciente exitosa
+### Validación Ethernet más reciente exitosa
 
 - laptop:
   - `enp3s0 = 192.168.123.50/24`
@@ -107,8 +117,22 @@ Archivos creados:
 
 Observación:
 
-- la ruta real al robot sale por `enp3s0`;
-- el modo `wifi` quedó implementado y probado a nivel de diagnóstico, pero no validado extremo a extremo porque no había una ruta Wi-Fi real hacia el robot en esta red.
+- la ruta real al robot sale por `enp3s0`.
+
+### Validación Wi-Fi más reciente en `UCV`
+
+- laptop:
+  - `wlo1 = 10.128.129.104/19`
+- robot:
+  - `wlan0 = 10.128.129.52/19`
+
+Observaciones:
+
+- `ping` y `ssh` funcionaron por Wi-Fi;
+- el SDK directo de audio devolvió `GetVolume code=3102`;
+- volumen y TTS quedaron operativos por fallback `SSH/PulseAudio`;
+- la cámara quedó operativa por fallback MJPEG en `http://10.128.129.52:8080/`;
+- la verificación unificada quedó en `WARNING`, no en `FAIL`.
 
 ## Resultado consolidado
 
@@ -135,6 +159,15 @@ El comando `python verify_unitree.py --robot-ip 192.168.123.164 --connection-mod
 - `Audio: OK`
 - `Cámara: OK`
 - `Estado general: OK`
+
+El comando `python verify_unitree.py --robot-ip 10.128.129.52 --connection-mode wifi --net-iface wlo1 --robot-password 123 --tts-engine auto` devolvió:
+
+- `Red: OK`
+- `SDK: WARNING`
+- `Volumen: OK`
+- `Audio: OK`
+- `Cámara: OK`
+- `Estado general: WARNING`
 
 ## Riesgos y advertencias
 

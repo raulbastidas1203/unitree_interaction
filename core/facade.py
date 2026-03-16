@@ -45,19 +45,19 @@ class UnitreeInteractionFacade:
 
     def read_volume(self, settings: ConnectionSettings) -> int:
         ctx = self.test_connection(settings)
-        return self.audio.read_volume(ctx.iface)
+        return self.audio.read_volume(ctx.iface, connection=settings)
 
     def apply_volume(self, settings: ConnectionSettings, volume: int) -> None:
         ctx = self.test_connection(settings)
-        self.audio.apply_volume(ctx.iface, volume)
+        self.audio.apply_volume(ctx.iface, volume, connection=settings)
 
     def speak(self, settings: ConnectionSettings, audio: AudioSettings) -> TtsResult:
         ctx = self.test_connection(settings)
-        return self.audio.speak(ctx.iface, audio.text, audio.engine, speaker_id=audio.speaker_id)
+        return self.audio.speak(ctx.iface, audio.text, audio.engine, speaker_id=audio.speaker_id, connection=settings)
 
     def play_wav(self, settings: ConnectionSettings, wav_path: str) -> TtsResult:
         ctx = self.test_connection(settings)
-        return self.audio.play_wav(ctx.iface, wav_path)
+        return self.audio.play_wav(ctx.iface, wav_path, connection=settings)
 
     def start_camera(self, settings: ConnectionSettings) -> CameraSession:
         ctx = self.test_connection(settings)
