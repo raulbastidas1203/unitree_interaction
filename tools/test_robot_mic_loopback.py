@@ -50,7 +50,10 @@ def choose_sink(sinks: list[str], source: str | None, target: str) -> str | None
 
     if target == "speaker":
         for original, lowered_name in lowered:
-            if "platform-sound" in lowered_name or "analog-stereo" in lowered_name:
+            if "platform-sound" in lowered_name:
+                return original
+        for original, lowered_name in lowered:
+            if "analog-stereo" in lowered_name and "usb" not in lowered_name:
                 return original
         return sinks[0] if sinks else None
 
@@ -117,9 +120,9 @@ def main() -> int:
     parser.add_argument("--sink", help="Sink de PulseAudio a usar.")
     parser.add_argument(
         "--playback-target",
-        default="auto",
+        default="speaker",
         choices=["auto", "usb", "speaker"],
-        help="Auto intenta reproducir en el mismo USB si existe; speaker fuerza el audio interno del robot.",
+        help="Por defecto usa el parlante interno del robot. usb fuerza el headset USB-C; auto intenta elegir según source.",
     )
     parser.add_argument("--keep-file", action="store_true", help="No borra el WAV temporal del robot.")
     args = parser.parse_args()
